@@ -95,6 +95,15 @@ canvas.addEventListener('touchmove', (e) => {
 canvas.addEventListener('mouseleave', () => updateCursorPosition(OUT_X, OUT_Y))
 canvas.addEventListener('touchend', () => updateCursorPosition(OUT_X, OUT_Y))
 
+// Оптимизация: бакеты для группировки по цвету
+const colorBuckets = new Array(ALPHA_STEPS)
+
+function initColorBuckets() {
+    for (let i = 0; i < ALPHA_STEPS; i++) {
+        colorBuckets[i] = []
+    }
+}
+
 class Square {
     constructor(canvasWidth, canvasHeight) {
         this.x = Math.random() * (canvasWidth - MAX_SIZE)
@@ -115,6 +124,10 @@ class Square {
         
         // Предрасчет констант
         this.originalSpeedSquared = this.originalSpeedX * this.originalSpeedX + this.originalSpeedY * this.originalSpeedY
+        
+        // Инициализация индекса цвета
+        this.colorIndex = Math.round((this.alpha - MIN_ALPHA) * INV_ALPHA_STEP)
+        this.colorIndex = Math.max(0, Math.min(ALPHA_STEPS - 1, this.colorIndex))
     }
     
     update(deltaTime) {
@@ -156,6 +169,8 @@ class Square {
         if (this.y < -this.size) this.y = canvas.height
         else if (this.y > canvas.height) this.y = -this.size
         
+        // Сохраняем старую альфу для проверки изменений
+        const oldAlpha = this.alpha
         this.alpha += this.alphaSpeed * deltaTime
         
         if (this.alpha <= MIN_ALPHA) {
@@ -165,11 +180,23 @@ class Square {
             this.alpha = MAX_ALPHA
             this.alphaSpeed = -Math.abs(this.alphaSpeed)
         }
-    }
-    
-    draw(ctx) {
-        ctx.fillStyle = getColorByAlpha(this.alpha)
-        ctx.fillRect(this.x, this.y, this.size, this.size)
+        
+        // Обновляем бакет цвета если альфа изменилась
+        if (this.alpha !== oldAlpha) {
+            const newColorIndex = Math.round((this.alpha - MIN_ALPHA) * INV_ALPHA_STEP)
+            const clampedIndex = Math.max(0, Math.min(ALPHA_STEPS - 1, newColorIndex))
+            
+            if (clampedIndex !== this.colorIndex) {
+                // Удаляем из старого бакета
+                const oldBucket = colorBuckets[this.colorIndex]
+                const index = oldBucket.indexOf(this)
+                if (index > -1) oldBucket.splice(index, 1)
+                
+                // Добавляем в новый
+                this.colorIndex = clampedIndex
+                colorBuckets[this.colorIndex].push(this)
+            }
+        }
     }
 }
 
@@ -180,26 +207,49 @@ let isAnimating = false
 
 function createSquares() {
     squares = []
+    initColorBuckets()
     
     const area = canvas.width * canvas.height
     const squaresCount = Math.floor(area / DENSITY_FACTOR)
     
     for (let i = 0; i < squaresCount; i++) {
-        squares.push(new Square(canvas.width, canvas.height))
+        const square = new Square(canvas.width, canvas.height)
+        squares.push(square)
+        colorBuckets[square.colorIndex].push(square)
     }
     console.log(`Created ${squaresCount} squares for area ${area}`)
 }
 
 function drawSquares() {
     context.clearRect(0, 0, canvas.width, canvas.height)
-    squares.forEach(square => square.draw(context))
+    
+    // Оптимизированная отрисовка по бакетам цветов
+    for (let i = 0; i < ALPHA_STEPS; i++) {
+        const bucket = colorBuckets[i]
+        const bucketLength = bucket.length
+        
+        if (bucketLength === 0) continue
+        
+        // Одна установка цвета для всего бакета
+        context.fillStyle = colorPalette[i]
+        
+        // Batch-отрисовка всех квадратов этого цвета
+        for (let j = 0; j < bucketLength; j++) {
+            const square = bucket[j]
+            context.fillRect(square.x, square.y, square.size, square.size)
+        }
+    }
 }
 
 function animate(currentTime) {
     const deltaTime = currentTime - lastTime
     lastTime = currentTime
     
-    squares.forEach(square => square.update(deltaTime))
+    // Обновляем все квадратики
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].update(deltaTime)
+    }
+    
     drawSquares()
     
     if (isAnimating) {
