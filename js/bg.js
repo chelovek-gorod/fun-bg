@@ -101,6 +101,7 @@ class Square {
 let squares = []
 let lastTime = 0
 let animationId = null
+let isAnimating = false
 
 function createSquares() {
     squares = []
@@ -126,21 +127,39 @@ function animate(currentTime) {
     squares.forEach(square => square.update(deltaTime))
     drawSquares()
     
-    animationId = requestAnimationFrame(animate)
+    if (isAnimating) {
+        animationId = requestAnimationFrame(animate)
+    }
+}
+
+function startAnimation() {
+    if (!isAnimating) {
+        isAnimating = true
+        lastTime = performance.now()
+        animationId = requestAnimationFrame(animate)
+    }
+}
+
+function stopAnimation() {
+    isAnimating = false
+    if (animationId) {
+        cancelAnimationFrame(animationId)
+        animationId = null
+    }
 }
 
 function resizeCanvas() {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
     
-    if (animationId) {
-        cancelAnimationFrame(animationId)
-    }
-    
+    stopAnimation()
     createSquares()
-    lastTime = performance.now()
-    animationId = requestAnimationFrame(animate)
+    startAnimation()
 }
+
+// Обработчики фокуса окна
+window.addEventListener('focus', startAnimation)
+window.addEventListener('blur', stopAnimation)
 
 ///////////////////////////////////
 
