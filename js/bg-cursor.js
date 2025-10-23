@@ -84,18 +84,33 @@ function updateCursorPosition(x, y) {
 canvas.addEventListener('mousemove', (e) => {
     updateCursorPosition(e.clientX, e.clientY)
 })
+canvas.addEventListener('mouseleave', () => updateCursorPosition(OUT_X, OUT_Y))
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault()
     const touch = e.touches[0]
     updateCursorPosition(touch.clientX, touch.clientY)
 })
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    updateCursorPosition(touch.clientX, touch.clientY)
+})
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault()
+    updateCursorPosition(OUT_X, OUT_Y)
+})
+canvas.addEventListener('touchcancel', (e) => {
+    e.preventDefault()
+    updateCursorPosition(OUT_X, OUT_Y)
+})
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    updateCursorPosition(touch.clientX, touch.clientY)
+})
 
-// Сбрасываем позицию курсора когда уходит с canvas
-canvas.addEventListener('mouseleave', () => updateCursorPosition(OUT_X, OUT_Y))
-canvas.addEventListener('touchend', () => updateCursorPosition(OUT_X, OUT_Y))
-
-// Оптимизация: бакеты для группировки по цвету
+// Оптимизация для группировки по цвету
 const colorBuckets = new Array(ALPHA_STEPS)
 
 function initColorBuckets() {
@@ -122,7 +137,7 @@ class Square {
         this.originalSpeedX = this.speedX
         this.originalSpeedY = this.speedY
         
-        // Предрасчет констант
+        // Расчет констант
         this.originalSpeedSquared = this.originalSpeedX * this.originalSpeedX + this.originalSpeedY * this.originalSpeedY
         
         // Инициализация индекса цвета
@@ -147,7 +162,7 @@ class Square {
             this.speedX += normX * force
             this.speedY += normY * force
             
-            // Ограничение скорости через квадраты (избегаем Math.sqrt)
+            // Ограничение скорости
             const currentSpeedSquared = this.speedX * this.speedX + this.speedY * this.speedY
             if (currentSpeedSquared > MAX_GRAVITY_SPEED_SQUARED) {
                 const scale = MAX_GRAVITY_SPEED / Math.sqrt(currentSpeedSquared)
@@ -155,7 +170,6 @@ class Square {
                 this.speedY *= scale
             }
         } else {
-            // Упрощенное сопротивление без лишних вычислений
             this.speedX = this.speedX * FRICTION + (this.originalSpeedX - this.speedX) * 0.02
             this.speedY = this.speedY * FRICTION + (this.originalSpeedY - this.speedY) * 0.02
         }
@@ -181,7 +195,7 @@ class Square {
             this.alphaSpeed = -Math.abs(this.alphaSpeed)
         }
         
-        // Обновляем бакет цвета если альфа изменилась
+        // Обновляем цвет если альфа изменилась
         if (this.alpha !== oldAlpha) {
             const newColorIndex = Math.round((this.alpha - MIN_ALPHA) * INV_ALPHA_STEP)
             const clampedIndex = Math.max(0, Math.min(ALPHA_STEPS - 1, newColorIndex))
@@ -223,17 +237,15 @@ function createSquares() {
 function drawSquares() {
     context.clearRect(0, 0, canvas.width, canvas.height)
     
-    // Оптимизированная отрисовка по бакетам цветов
+    // Оптимизированная отрисовка по цветам
     for (let i = 0; i < ALPHA_STEPS; i++) {
         const bucket = colorBuckets[i]
         const bucketLength = bucket.length
         
         if (bucketLength === 0) continue
         
-        // Одна установка цвета для всего бакета
         context.fillStyle = colorPalette[i]
         
-        // Batch-отрисовка всех квадратов этого цвета
         for (let j = 0; j < bucketLength; j++) {
             const square = bucket[j]
             context.fillRect(square.x, square.y, square.size, square.size)
@@ -245,7 +257,6 @@ function animate(currentTime) {
     const deltaTime = currentTime - lastTime
     lastTime = currentTime
     
-    // Обновляем все квадратики
     for (let i = 0; i < squares.length; i++) {
         squares[i].update(deltaTime)
     }
@@ -282,11 +293,8 @@ function resizeCanvas() {
     startAnimation()
 }
 
-// Обработчики фокуса окна
 window.addEventListener('focus', startAnimation)
 window.addEventListener('blur', stopAnimation)
-
-///////////////////////////////////
 
 resizeCanvas()
 window.addEventListener('resize', resizeCanvas)
